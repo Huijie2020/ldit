@@ -369,6 +369,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, default='kitti_360')
     parser.add_argument("--results-dir", type=str, default="results")
     parser.add_argument("--model", type=str, choices=list(DiT_models.keys()), default="DiT-XL/2")
+    parser.add_argument("--image-format", type=str, default="log_depth")
     parser.add_argument("--image-size", type=tuple, default=(64, 1024))
     parser.add_argument("--lidar-projection", type=str, choices=["unfolding-2048", "spherical-2048", "unfolding-1024", "spherical-1024"], default="spherical-1024")
     parser.add_argument("--model-coords-embedding", type=str, choices=["spherical_harmonics", "polar_coordinates", "fourier_features"], default="fourier_features")
