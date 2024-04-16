@@ -205,36 +205,36 @@ def main(args):
         depth, rflct = torch.split(image, channels, dim=1)
         return depth, rflct
 
-    @torch.inference_mode()
-    def log_images(image, tag: str = "name", global_step: int = 0):
-        image = lidar_utils.denormalize(image)
-        out = dict()
-        depth, rflct = split_channels(image)
-        if depth.numel() > 0:
-            out[f"{tag}/depth"] = utils.render.colorize(depth)
-            metric = lidar_utils.revert_depth(depth)
-            mask = (metric > lidar_utils.min_depth) & (metric < lidar_utils.max_depth)
-            out[f"{tag}/depth/orig"] = utils.render.colorize(
-                metric / lidar_utils.max_depth
-            )
-            xyz = lidar_utils.to_xyz(metric) / lidar_utils.max_depth * mask
-            normal = -utils.render.estimate_surface_normal(xyz)
-            normal = lidar_utils.denormalize(normal)
-            bev = utils.render.render_point_clouds(
-                points=einops.rearrange(xyz, "B C H W -> B (H W) C"),
-                colors=einops.rearrange(normal, "B C H W -> B (H W) C"),
-                t=torch.tensor([0, 0, 1.0]).to(xyz),
-            )
-            out[f"{tag}/bev"] = bev.mul(255).clamp(0, 255).byte()
-        if rflct.numel() > 0:
-            out[f"{tag}/reflectance"] = utils.render.colorize(rflct, cm.plasma)
-        if mask.numel() > 0:
-            out[f"{tag}/mask"] = utils.render.colorize(mask, cm.binary_r)
-        tracker.log_images(out, step=global_step)
+    # @torch.inference_mode()
+    # def log_images(image, tag: str = "name", global_step: int = 0):
+    #     image = lidar_utils.denormalize(image)
+    #     out = dict()
+    #     depth, rflct = split_channels(image)
+    #     if depth.numel() > 0:
+    #         out[f"{tag}/depth"] = utils.render.colorize(depth)
+    #         metric = lidar_utils.revert_depth(depth)
+    #         mask = (metric > lidar_utils.min_depth) & (metric < lidar_utils.max_depth)
+    #         out[f"{tag}/depth/orig"] = utils.render.colorize(
+    #             metric / lidar_utils.max_depth
+    #         )
+    #         xyz = lidar_utils.to_xyz(metric) / lidar_utils.max_depth * mask
+    #         normal = -utils.render.estimate_surface_normal(xyz)
+    #         normal = lidar_utils.denormalize(normal)
+    #         bev = utils.render.render_point_clouds(
+    #             points=einops.rearrange(xyz, "B C H W -> B (H W) C"),
+    #             colors=einops.rearrange(normal, "B C H W -> B (H W) C"),
+    #             t=torch.tensor([0, 0, 1.0]).to(xyz),
+    #         )
+    #         out[f"{tag}/bev"] = bev.mul(255).clamp(0, 255).byte()
+    #     if rflct.numel() > 0:
+    #         out[f"{tag}/reflectance"] = utils.render.colorize(rflct, cm.plasma)
+    #     if mask.numel() > 0:
+    #         out[f"{tag}/mask"] = utils.render.colorize(mask, cm.binary_r)
+    #     tracker.log_images(out, step=global_step)
 
     # Create model:
     assert args.image_size[0] % 8 == 0 and args.image_size[1] % 8 == 0, "Image size must be divisible by 8 (for the VAE encoder)."
-    latent_size = (args.image_size(0) // 8, args.image_size(1) // 8)
+    latent_size = (args.image_size[0] // 8, args.image_size[1] // 8)
     model = DiT_models[args.model](
         input_size=latent_size,
         num_classes=args.num_classes
