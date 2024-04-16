@@ -166,13 +166,13 @@ def main(args):
 
     # spatial coords embedding
     coords_embedding = None
-    if coords_embedding == "spherical_harmonics":
+    if args.coords_embedding == "spherical_harmonics":
         coords_embedding = encoding.SphericalHarmonics(levels=5)
         in_channels += coords_embedding.extra_ch
-    elif coords_embedding == "polar_coordinates":
+    elif args.coords_embedding == "polar_coordinates":
         coords_embedding = nn.Identity()
         in_channels += coords.shape[1]
-    elif coords_embedding == "fourier_features":
+    elif args.coords_embedding == "fourier_features":
         coords_embedding = encoding.FourierFeatures(args.image_size)
         in_channels += coords_embedding.extra_ch
 
