@@ -31,7 +31,14 @@ from models import DiT_models
 from diffusion import create_diffusion
 from diffusers.models import AutoencoderKL
 
-
+import utils.render
+from utils.lidar import LiDARUtility, get_hdl64e_linear_ray_angles
+from diffusion import encoding
+from torch import nn
+import torch.nn.functional as F
+import datasets as ds
+import einops
+from torch.utils.tensorboard import SummaryWriter
 #################################################################################
 #                             Training Helper Functions                         #
 #################################################################################
@@ -82,25 +89,25 @@ def create_logger(logging_dir):
     return logger
 
 
-def center_crop_arr(pil_image, image_size):
-    """
-    Center cropping implementation from ADM.
-    https://github.com/openai/guided-diffusion/blob/8fb3ad9197f16bbc40620447b2742e13458d2831/guided_diffusion/image_datasets.py#L126
-    """
-    while min(*pil_image.size) >= 2 * image_size:
-        pil_image = pil_image.resize(
-            tuple(x // 2 for x in pil_image.size), resample=Image.BOX
-        )
-
-    scale = image_size / min(*pil_image.size)
-    pil_image = pil_image.resize(
-        tuple(round(x * scale) for x in pil_image.size), resample=Image.BICUBIC
-    )
-
-    arr = np.array(pil_image)
-    crop_y = (arr.shape[0] - image_size) // 2
-    crop_x = (arr.shape[1] - image_size) // 2
-    return Image.fromarray(arr[crop_y: crop_y + image_size, crop_x: crop_x + image_size])
+# def center_crop_arr(pil_image, image_size):
+#     """
+#     Center cropping implementation from ADM.
+#     https://github.com/openai/guided-diffusion/blob/8fb3ad9197f16bbc40620447b2742e13458d2831/guided_diffusion/image_datasets.py#L126
+#     """
+#     while min(*pil_image.size) >= 2 * image_size:
+#         pil_image = pil_image.resize(
+#             tuple(x // 2 for x in pil_image.size), resample=Image.BOX
+#         )
+#
+#     scale = image_size / min(*pil_image.size)
+#     pil_image = pil_image.resize(
+#         tuple(round(x * scale) for x in pil_image.size), resample=Image.BICUBIC
+#     )
+#
+#     arr = np.array(pil_image)
+#     crop_y = (arr.shape[0] - image_size) // 2
+#     crop_x = (arr.shape[1] - image_size) // 2
+#     return Image.fromarray(arr[crop_y: crop_y + image_size, crop_x: crop_x + image_size])
 
 
 #################################################################################
@@ -131,14 +138,103 @@ def main(args):
         experiment_dir = f"{args.results_dir}/{experiment_index:03d}-{model_string_name}"  # Create an experiment folder
         checkpoint_dir = f"{experiment_dir}/checkpoints"  # Stores saved model checkpoints
         os.makedirs(checkpoint_dir, exist_ok=True)
+        tensorboard_dir = f"{experiment_dir}/tensorboard"  # Stores saved model checkpoints
+        os.makedirs(tensorboard_dir, exist_ok=True)
         logger = create_logger(experiment_dir)
         logger.info(f"Experiment directory created at {experiment_dir}")
+        tb_writer = SummaryWriter(tensorboard_dir)
     else:
         logger = create_logger(None)
 
+    channels = [
+        1 if args.train_depth else 0,
+        1 if args.train_reflectance else 0,
+    ]
+
+    in_channels = sum(channels)
+
+    # set lidar projection
+    if "spherical" in args.lidar_projection:
+        print("set HDL-64E linear ray angles")
+        coords = get_hdl64e_linear_ray_angles(*args.image_size)
+    elif "unfolding" in args.lidar_projection:
+        print("set dataset ray angles")
+        _coords = torch.load(f"data/{args.dataset}/unfolding_angles.pth")
+        coords = F.interpolate(_coords, size=args.image_size, mode="nearest-exact")
+    else:
+        raise ValueError(f"Unknown: {args.lidar_projection}")
+
+    # spatial coords embedding
+    coords_embedding = None
+    if coords_embedding == "spherical_harmonics":
+        coords_embedding = encoding.SphericalHarmonics(levels=5)
+        in_channels += coords_embedding.extra_ch
+    elif coords_embedding == "polar_coordinates":
+        coords_embedding = nn.Identity()
+        in_channels += coords.shape[1]
+    elif coords_embedding == "fourier_features":
+        coords_embedding = encoding.FourierFeatures(args.image_size)
+        in_channels += coords_embedding.extra_ch
+
+    # Utility
+    lidar_utils = LiDARUtility(
+        resolution=args.image_size,
+        image_format=args.image_format,
+        min_depth=args.min_depth,
+        max_depth=args.max_depth,
+        ray_angles=coords,
+    )
+    lidar_utils.to(device)
+
+    def preprocess(batch):
+        x = []
+        if args.train_depth:
+            x += [lidar_utils.convert_depth(batch["depth"])]
+        if args.train_reflectance:
+            x += [batch["reflectance"]]
+        x = torch.cat(x, dim=1)
+        x = lidar_utils.normalize(x)
+        x = F.interpolate(
+            x.to(device),
+            size=args.image_size,
+            mode="nearest-exact",
+        )
+        return x
+
+    def split_channels(image: torch.Tensor):
+        depth, rflct = torch.split(image, channels, dim=1)
+        return depth, rflct
+
+    @torch.inference_mode()
+    def log_images(image, tag: str = "name", global_step: int = 0):
+        image = lidar_utils.denormalize(image)
+        out = dict()
+        depth, rflct = split_channels(image)
+        if depth.numel() > 0:
+            out[f"{tag}/depth"] = utils.render.colorize(depth)
+            metric = lidar_utils.revert_depth(depth)
+            mask = (metric > lidar_utils.min_depth) & (metric < lidar_utils.max_depth)
+            out[f"{tag}/depth/orig"] = utils.render.colorize(
+                metric / lidar_utils.max_depth
+            )
+            xyz = lidar_utils.to_xyz(metric) / lidar_utils.max_depth * mask
+            normal = -utils.render.estimate_surface_normal(xyz)
+            normal = lidar_utils.denormalize(normal)
+            bev = utils.render.render_point_clouds(
+                points=einops.rearrange(xyz, "B C H W -> B (H W) C"),
+                colors=einops.rearrange(normal, "B C H W -> B (H W) C"),
+                t=torch.tensor([0, 0, 1.0]).to(xyz),
+            )
+            out[f"{tag}/bev"] = bev.mul(255).clamp(0, 255).byte()
+        if rflct.numel() > 0:
+            out[f"{tag}/reflectance"] = utils.render.colorize(rflct, cm.plasma)
+        if mask.numel() > 0:
+            out[f"{tag}/mask"] = utils.render.colorize(mask, cm.binary_r)
+        tracker.log_images(out, step=global_step)
+
     # Create model:
-    assert args.image_size % 8 == 0, "Image size must be divisible by 8 (for the VAE encoder)."
-    latent_size = args.image_size // 8
+    assert args.image_size[0] % 8 == 0 and args.image_size[1] % 8 == 0, "Image size must be divisible by 8 (for the VAE encoder)."
+    latent_size = (args.image_size(0) // 8, args.image_size(1) // 8)
     model = DiT_models[args.model](
         input_size=latent_size,
         num_classes=args.num_classes
@@ -155,13 +251,20 @@ def main(args):
     opt = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0)
 
     # Setup data:
-    transform = transforms.Compose([
-        transforms.Lambda(lambda pil_image: center_crop_arr(pil_image, args.image_size)),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
-    ])
-    dataset = ImageFolder(args.data_path, transform=transform)
+    # transform = transforms.Compose([
+    #     transforms.Lambda(lambda pil_image: center_crop_arr(pil_image, args.image_size)),
+    #     transforms.RandomHorizontalFlip(),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
+    # ])
+    # dataset = ImageFolder(args.data_path, transform=transform)
+    dataset = ds.load_dataset(
+        path=f"data/{args.dataset}",
+        name=args.lidar_projection,
+        split=ds.Split.TRAIN,
+        num_proc=args.num_workers,
+        trust_remote_code=True,
+    ).with_format("torch")
     sampler = DistributedSampler(
         dataset,
         num_replicas=dist.get_world_size(),
@@ -197,7 +300,15 @@ def main(args):
         logger.info(f"Beginning epoch {epoch}...")
         for x, y in loader:
             x = x.to(device)
+            x = preprocess(x)
             y = y.to(device)
+
+            # spatial embedding
+            cemb = coords_embedding(coords)
+            cemb = cemb.repeat_interleave(x.shape[0], dim=0) # [6, 32, 64, 1024]
+            cemb = cemb.to(device)
+            x = torch.cat([x, cemb], dim=1) # [6, 34, 64, 1024]
+
             with torch.no_grad():
                 # Map input images to latent space + normalize latents:
                 x = vae.encode(x).latent_dist.sample().mul_(0.18215)
@@ -214,6 +325,7 @@ def main(args):
             running_loss += loss.item()
             log_steps += 1
             train_steps += 1
+            tb_writer.add_scalar('Train', running_loss, train_steps)
             if train_steps % args.log_every == 0:
                 # Measure training speed:
                 torch.cuda.synchronize()
@@ -253,11 +365,19 @@ def main(args):
 if __name__ == "__main__":
     # Default args here will train DiT-XL/2 with the hyperparameters we used in our paper (except training iters).
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-path", type=str, required=True)
+    parser.add_argument("--data-path", type=str, required=True, default="./data/kitti_360")
+    parser.add_argument("--dataset", type=str, default='kitti_360')
     parser.add_argument("--results-dir", type=str, default="results")
     parser.add_argument("--model", type=str, choices=list(DiT_models.keys()), default="DiT-XL/2")
-    parser.add_argument("--image-size", type=int, choices=[256, 512], default=256)
-    parser.add_argument("--num-classes", type=int, default=1000)
+    parser.add_argument("--image-size", type=tuple, default=(64, 1024))
+    parser.add_argument("--lidar-projection", type=str, choices=["unfolding-2048", "spherical-2048", "unfolding-1024", "spherical-1024"], default="spherical-1024")
+    parser.add_argument("--model-coords-embedding", type=str, choices=["spherical_harmonics", "polar_coordinates", "fourier_features"], default="fourier_features")
+    parser.add_argument("--train-depth", type=bool, default=True)
+    parser.add_argument("--train-reflectance", type=bool, default=True)
+    parser.add_argument("--train-mask", type=bool, default=False)
+    parser.add_argument("--min-depth", type=float, default=1.45)
+    parser.add_argument("--max-depth", type=float, default=80.0)
+    # parser.add_argument("--num-classes", type=int, default=1000)
     parser.add_argument("--epochs", type=int, default=1400)
     parser.add_argument("--global-batch-size", type=int, default=256)
     parser.add_argument("--global-seed", type=int, default=0)
