@@ -298,10 +298,10 @@ def main(args):
     for epoch in range(args.epochs):
         sampler.set_epoch(epoch)
         logger.info(f"Beginning epoch {epoch}...")
-        for x, y in loader:
+        for x in loader:
             x = x.to(device)
             x = preprocess(x)
-            y = y.to(device)
+            # y = y.to(device)
 
             # spatial embedding
             cemb = coords_embedding(coords)
