@@ -299,8 +299,8 @@ def main(args):
         sampler.set_epoch(epoch)
         logger.info(f"Beginning epoch {epoch}...")
         for x in loader:
-            x = x.to(device)
             x = preprocess(x)
+            x = x.to(device)
             # y = y.to(device)
 
             # spatial embedding
