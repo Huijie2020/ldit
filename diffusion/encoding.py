@@ -147,3 +147,22 @@ class FourierFeatures(nn.Module):
 
     def extra_repr(self):
         return f"shape={self.resolution}, num_freqs={self.extra_ch}, L=({self.L_h}, {self.L_w})"
+
+import torch
+
+def positional_encoding_polar_1channel(angles):
+   """
+   Generate combined positional encoding for polar coordinates  [elevation, azimuth].
+
+   Args:
+   - angles (torch.Tensor): torch.stack([elevation, azimuth])[None].deg2rad()
+
+   Returns:
+   - positional_encoding (torch.Tensor): The combined positional
+encoding matrix of shape (height, width, 1).
+   """
+
+   positinal_encoding = torch.sin(angles[:,0,:,:] / (10000 ** 2)) * \
+                   torch.cos(angles[:,1,:,:] / (10000 ** 2))
+   positional_encoding = positinal_encoding.unsqueeze(0)
+   return positional_encoding

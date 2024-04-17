@@ -304,17 +304,17 @@ def main(args):
             # y = y.to(device)
 
             # spatial embedding
-            cemb = coords_embedding(coords)
-            cemb = cemb.repeat_interleave(x.shape[0], dim=0) # [6, 32, 64, 1024]
+            cemb = encoding.positional_encoding_polar_1channel(coords)
+            cemb = cemb.repeat_interleave(x.shape[0], dim=0) # [6, 1, 64, 1024]
             cemb = cemb.to(device)
-            x = torch.cat([x, cemb], dim=1) # [6, 34, 64, 1024]
+            x = torch.cat([x, cemb], dim=1) # [6, 3, 64, 1024]
 
             with torch.no_grad():
                 # Map input images to latent space + normalize latents:
                 x = vae.encode(x).latent_dist.sample().mul_(0.18215)
             t = torch.randint(0, diffusion.num_timesteps, (x.shape[0],), device=device)
-            model_kwargs = dict(y=y)
-            loss_dict = diffusion.training_losses(model, x, t, model_kwargs)
+            # model_kwargs = dict(y=y)
+            loss_dict = diffusion.training_losses(model, x, t)
             loss = loss_dict["loss"].mean()
             opt.zero_grad()
             loss.backward()
@@ -372,7 +372,7 @@ if __name__ == "__main__":
     parser.add_argument("--image-format", type=str, default="log_depth")
     parser.add_argument("--image-size", type=tuple, default=(64, 1024))
     parser.add_argument("--lidar-projection", type=str, choices=["unfolding-2048", "spherical-2048", "unfolding-1024", "spherical-1024"], default="spherical-1024")
-    parser.add_argument("--model-coords-embedding", type=str, choices=["spherical_harmonics", "polar_coordinates", "fourier_features"], default="fourier_features")
+    parser.add_argument("--model-coords-embedding", type=str, choices=["spherical_harmonics", "polar_coordinates", "fourier_features"], default="polar_coordinates")
     parser.add_argument("--train-depth", type=bool, default=True)
     parser.add_argument("--train-reflectance", type=bool, default=True)
     parser.add_argument("--train-mask", type=bool, default=False)
