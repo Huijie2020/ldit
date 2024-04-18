@@ -1,3 +1,6 @@
+ln -sf /storage/data1/liulab-data/hz/data/kitti_360 data/kitti_360/dataset
 # train
 torchrun --nnodes=1 --nproc_per_node=1 train.py --model DiT-XL/2 --data-path /data/hz/data/tiny-imagenet-200/train
 torchrun --nnodes=1 --nproc_per_node=4 train.py --model DiT-XL/2 --data-path /storage/data1/liulab-data/hz/data/tiny-imagenet-200/train
+torchrun --nnodes=1 --nproc_per_node=1 train.py --model DiT-XL/2
+torchrun --nnodes=1 --nproc_per_node=4 train.py --model DiT-XL/2
