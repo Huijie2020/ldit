@@ -300,7 +300,7 @@ def main(args):
         logger.info(f"Beginning epoch {epoch}...")
         for x in loader:
             x = preprocess(x)
-            y = torch.zeros(x.shape[0])
+            y = torch.zeros(x.shape[0]).to(torch.int64)
             x = x.to(device)
             y = y.to(device)
 
@@ -380,8 +380,8 @@ if __name__ == "__main__":
     parser.add_argument("--min-depth", type=float, default=1.45)
     parser.add_argument("--max-depth", type=float, default=80.0)
     parser.add_argument("--num-classes", type=int, default=1)
-    parser.add_argument("--epochs", type=int, default=1400)
-    parser.add_argument("--global-batch-size", type=int, default=256)
+    parser.add_argument("--epochs", type=int, default=300)
+    parser.add_argument("--global-batch-size", type=int, default=64)
     parser.add_argument("--global-seed", type=int, default=0)
     parser.add_argument("--vae", type=str, choices=["ema", "mse"], default="ema")  # Choice doesn't affect training
     parser.add_argument("--num-workers", type=int, default=4)
