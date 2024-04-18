@@ -236,8 +236,8 @@ def main(args):
     assert args.image_size[0] % 8 == 0 and args.image_size[1] % 8 == 0, "Image size must be divisible by 8 (for the VAE encoder)."
     latent_size = (args.image_size[0] // 8, args.image_size[1] // 8)
     model = DiT_models[args.model](
-        input_size=latent_size
-        # num_classes=args.num_classes
+        input_size=latent_size,
+        num_classes=args.num_classes
     )
     # Note that parameter initialization is done within the DiT constructor
     ema = deepcopy(model).to(device)  # Create an EMA of the model for use after training
@@ -300,8 +300,9 @@ def main(args):
         logger.info(f"Beginning epoch {epoch}...")
         for x in loader:
             x = preprocess(x)
+            y = torch.zeros(x.shape[0])
             x = x.to(device)
-            # y = y.to(device)
+            y = y.to(device)
 
             # spatial embedding
             cemb = encoding.positional_encoding_polar_1channel(coords)
@@ -313,8 +314,8 @@ def main(args):
                 # Map input images to latent space + normalize latents:
                 x = vae.encode(x).latent_dist.sample().mul_(0.18215)
             t = torch.randint(0, diffusion.num_timesteps, (x.shape[0],), device=device)
-            # model_kwargs = dict(y=y)
-            loss_dict = diffusion.training_losses(model, x, t)
+            model_kwargs = dict(y=y)
+            loss_dict = diffusion.training_losses(model, x, t, model_kwargs)
             loss = loss_dict["loss"].mean()
             opt.zero_grad()
             loss.backward()
@@ -378,7 +379,7 @@ if __name__ == "__main__":
     parser.add_argument("--train-mask", type=bool, default=False)
     parser.add_argument("--min-depth", type=float, default=1.45)
     parser.add_argument("--max-depth", type=float, default=80.0)
-    # parser.add_argument("--num-classes", type=int, default=1000)
+    parser.add_argument("--num-classes", type=int, default=1)
     parser.add_argument("--epochs", type=int, default=1400)
     parser.add_argument("--global-batch-size", type=int, default=256)
     parser.add_argument("--global-seed", type=int, default=0)
