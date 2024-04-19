@@ -160,6 +160,7 @@ class DiT(nn.Module):
         learn_sigma=True,
     ):
         super().__init__()
+        self.input_size = input_size
         self.learn_sigma = learn_sigma
         self.in_channels = in_channels
         self.out_channels = in_channels * 2 if learn_sigma else in_channels
@@ -220,14 +221,16 @@ class DiT(nn.Module):
         x: (N, T, patch_size**2 * C)
         imgs: (N, H, W, C)
         """
-        c = self.out_channels
-        p = self.x_embedder.patch_size[0]
-        h = w = int(x.shape[1] ** 0.5)
+        c = self.out_channels #8
+        p = self.x_embedder.patch_size[0] #2
+        # h = w = int(x.shape[1] ** 0.5) # 16
+        h = int(self.input_size[0] / p) # 4
+        w = int(self.input_size[1] / p) # 64
         assert h * w == x.shape[1]
 
         x = x.reshape(shape=(x.shape[0], h, w, p, p, c))
         x = torch.einsum('nhwpqc->nchpwq', x)
-        imgs = x.reshape(shape=(x.shape[0], c, h * p, h * p))
+        imgs = x.reshape(shape=(x.shape[0], c, h * p, w * p))
         return imgs
 
     def forward(self, x, t, y):
@@ -237,15 +240,16 @@ class DiT(nn.Module):
         t: (N,) tensor of diffusion timesteps
         y: (N,) tensor of class labels
         """
-        x = self.x_embedder(x) + self.pos_embed  # (N, T, D), where T = H * W / patch_size ** 2
+                                                 # x.shape -> [16, 4, 8, 128]
+        x = self.x_embedder(x) + self.pos_embed  # (N, T, D), where T = H * W / patch_size ** 2  [16, 256, 1152]
         t = self.t_embedder(t)                   # (N, D)
         y = self.y_embedder(y, self.training)    # (N, D)
         c = t + y                                # (N, D)
         for block in self.blocks:
             x = block(x, c)                      # (N, T, D)
             x = block(x, t)                      # (N, T, D)
-        x = self.final_layer(x, c)                # (N, T, patch_size ** 2 * out_channels)
-        x = self.unpatchify(x)                   # (N, out_channels, H, W)
+        x = self.final_layer(x, c)               # (N, T, patch_size ** 2 * out_channels) [16, 256, 32]
+        x = self.unpatchify(x)                   # (N, out_channels, H, W) [16, 8, 32, 32]
         return x
 
     def forward_with_cfg(self, x, t, y, cfg_scale):

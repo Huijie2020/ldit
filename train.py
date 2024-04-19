@@ -38,8 +38,9 @@ from torch import nn
 import torch.nn.functional as F
 import datasets as ds
 import einops
-from torch.utils.tensorboard import SummaryWriter
-#################################################################################
+# from torch.utils.tensorboard import SummaryWriter
+# from tensorboardX import SummaryWriter
+################################################################################
 #                             Training Helper Functions                         #
 #################################################################################
 
@@ -142,7 +143,7 @@ def main(args):
         os.makedirs(tensorboard_dir, exist_ok=True)
         logger = create_logger(experiment_dir)
         logger.info(f"Experiment directory created at {experiment_dir}")
-        tb_writer = SummaryWriter(tensorboard_dir)
+        # tb_writer = SummaryWriter(tensorboard_dir)
     else:
         logger = create_logger(None)
 
@@ -326,7 +327,7 @@ def main(args):
             running_loss += loss.item()
             log_steps += 1
             train_steps += 1
-            tb_writer.add_scalar('Train', running_loss, train_steps)
+            # tb_writer.add_scalar('Train', loss.item(), train_steps)
             if train_steps % args.log_every == 0:
                 # Measure training speed:
                 torch.cuda.synchronize()
@@ -381,7 +382,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-depth", type=float, default=80.0)
     parser.add_argument("--num-classes", type=int, default=1)
     parser.add_argument("--epochs", type=int, default=300)
-    parser.add_argument("--global-batch-size", type=int, default=64)
+    parser.add_argument("--global-batch-size", type=int, default=100)
     parser.add_argument("--global-seed", type=int, default=0)
     parser.add_argument("--vae", type=str, choices=["ema", "mse"], default="ema")  # Choice doesn't affect training
     parser.add_argument("--num-workers", type=int, default=4)
