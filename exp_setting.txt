@@ -4,3 +4,13 @@ torchrun --nnodes=1 --nproc_per_node=1 train.py --model DiT-XL/2 --data-path /da
 torchrun --nnodes=1 --nproc_per_node=4 train.py --model DiT-XL/2 --data-path /storage/data1/liulab-data/hz/data/tiny-imagenet-200/train
 torchrun --nnodes=1 --nproc_per_node=1 train.py --model DiT-XL/2
 torchrun --nnodes=1 --nproc_per_node=4 train.py --model DiT-XL/2
+
+# 0418_baseline_XL2_b164_polar1ch_e300
+global-batch-size = 164
+num-workers: int = 8
+epochs= 300
+odel-coords-embedding = polar_coordinates
+image-format = log_depth
+
+train
+torchrun --nnodes=1 --nproc_per_node=4 train.py --model DiT-XL/2
