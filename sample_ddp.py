@@ -35,8 +35,9 @@ def create_npz_from_sample_folder(sample_dir, num=50_000):
     """
     samples = []
     for i in tqdm(range(num), desc="Building .npz file from samples"):
-        sample_pil = Image.open(f"{sample_dir}/{i:06d}.png")
-        sample_np = np.asarray(sample_pil).astype(np.uint8)
+        # sample_pil = Image.open(f"{sample_dir}/{i:06d}.png")
+        sample_pth = torch.load(f"{sample_dir}/{i:06d}.png")
+        sample_np = np.asarray(sample_pth).astype(np.uint8)
         samples.append(sample_np)
     samples = np.stack(samples)
     assert samples.shape == (num, samples.shape[1], samples.shape[2], 3)
@@ -165,7 +166,7 @@ def main(args):
         for i, sample in enumerate(samples):
             index = i * dist.get_world_size() + rank + total
             sample = samples[i]
-            torch.save(sample.clone(), sample_folder_dir / f"samples_{index:010d}.pth")
+            torch.save(sample.clone(), f"{sample_folder_dir}/{index:010d}.pth")
             # Image.fromarray(sample).save(f"{sample_folder_dir}/{index:06d}.png")
         total += global_batch_size
 
