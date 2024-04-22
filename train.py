@@ -147,12 +147,12 @@ def main(args):
     else:
         logger = create_logger(None)
 
-    channels = [
-        1 if args.train_depth else 0,
-        1 if args.train_reflectance else 0,
-    ]
-
-    in_channels = sum(channels)
+    # channels = [
+    #     1 if args.train_depth else 0,
+    #     1 if args.train_reflectance else 0,
+    # ]
+    #
+    # in_channels = sum(channels)
 
     # set lidar projection
     if "spherical" in args.lidar_projection:
@@ -169,13 +169,13 @@ def main(args):
     coords_embedding = None
     if args.model_coords_embedding == "spherical_harmonics":
         coords_embedding = encoding.SphericalHarmonics(levels=5)
-        in_channels += coords_embedding.extra_ch
+        # in_channels += coords_embedding.extra_ch
     elif args.model_coords_embedding == "polar_coordinates":
         coords_embedding = nn.Identity()
-        in_channels += coords.shape[1]
+        # in_channels += coords.shape[1]
     elif args.model_coords_embedding == "fourier_features":
         coords_embedding = encoding.FourierFeatures(args.image_size)
-        in_channels += coords_embedding.extra_ch
+        # in_channels += coords_embedding.extra_ch
 
     # Utility
     lidar_utils = LiDARUtility(
