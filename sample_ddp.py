@@ -36,7 +36,7 @@ def create_npz_from_sample_folder(sample_dir, num=50_000):
     samples = []
     for i in tqdm(range(num), desc="Building .npz file from samples"):
         # sample_pil = Image.open(f"{sample_dir}/{i:06d}.png")
-        sample_pth = torch.load(f"{sample_dir}/{i:06d}.png")
+        sample_pth = torch.load(f"{sample_dir}/{i:010d}.pth",map_location=torch.device('cpu'))
         sample_np = np.asarray(sample_pth).astype(np.uint8)
         samples.append(sample_np)
     samples = np.stack(samples)
@@ -184,7 +184,7 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, choices=list(DiT_models.keys()), default="DiT-XL/2")
     parser.add_argument("--vae",  type=str, choices=["ema", "mse"], default="ema")
     parser.add_argument("--sample-dir", type=str, default="samples")
-    parser.add_argument("--per-proc-batch-size", type=int, default=20)
+    parser.add_argument("--per-proc-batch-size", type=int, default=160)
     parser.add_argument("--num-fid-samples", type=int, default=10_000)
     parser.add_argument("--image-format", type=str, default="log_depth")
     parser.add_argument("--image-size", type=tuple, default=(64, 1024))
