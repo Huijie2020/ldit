@@ -387,6 +387,6 @@ if __name__ == "__main__":
     parser.add_argument("--vae", type=str, choices=["ema", "mse"], default="ema")  # Choice doesn't affect training
     parser.add_argument("--num-workers", type=int, default=8)
     parser.add_argument("--log-every", type=int, default=100)
-    parser.add_argument("--ckpt-every", type=int, default=5000)
+    parser.add_argument("--ckpt-every", type=int, default=2000)
     args = parser.parse_args()
     main(args)
