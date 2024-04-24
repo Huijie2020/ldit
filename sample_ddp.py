@@ -98,7 +98,7 @@ def main(args):
     dist.barrier()
 
     # Spatial coords
-    coords = encoding.generate_polar_coords(*args.image_size)
+    coords = get_hdl64e_linear_ray_angles(*args.image_size)
 
     # Utility
     lidar_utils = LiDARUtility(
@@ -173,7 +173,7 @@ def main(args):
     # Make sure all processes have finished saving their samples before attempting to convert to .npz
     dist.barrier()
     if rank == 0:
-        create_npz_from_sample_folder(sample_folder_dir, args.num_fid_samples)
+        # create_npz_from_sample_folder(sample_folder_dir, args.num_fid_samples)
         print("Done.")
     dist.barrier()
     dist.destroy_process_group()

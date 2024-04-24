@@ -147,12 +147,12 @@ def main(args):
     else:
         logger = create_logger(None)
 
-    # channels = [
-    #     1 if args.train_depth else 0,
-    #     1 if args.train_reflectance else 0,
-    # ]
-    #
-    # in_channels = sum(channels)
+    channels = [
+        1 if args.train_depth else 0,
+        1 if args.train_reflectance else 0,
+    ]
+
+    in_channels = sum(channels)
 
     # set lidar projection
     if "spherical" in args.lidar_projection:
