@@ -38,7 +38,7 @@ from torch import nn
 import torch.nn.functional as F
 import datasets as ds
 import einops
-# from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 # from tensorboardX import SummaryWriter
 ################################################################################
 #                             Training Helper Functions                         #
@@ -143,7 +143,7 @@ def main(args):
         os.makedirs(tensorboard_dir, exist_ok=True)
         logger = create_logger(experiment_dir)
         logger.info(f"Experiment directory created at {experiment_dir}")
-        # tb_writer = SummaryWriter(tensorboard_dir)
+        tb_writer = SummaryWriter(tensorboard_dir)
     else:
         logger = create_logger(None)
 
@@ -327,7 +327,8 @@ def main(args):
             running_loss += loss.item()
             log_steps += 1
             train_steps += 1
-            # tb_writer.add_scalar('Train', loss.item(), train_steps)
+            if rank == 0:
+                tb_writer.add_scalar('Train', loss.item(), train_steps)
             if train_steps % args.log_every == 0:
                 # Measure training speed:
                 torch.cuda.synchronize()
