@@ -159,7 +159,7 @@ def main(args):
 
         samples = vae.decode(samples / 0.18215).sample
         samples = samples.clamp(-1, 1)
-        samples = postprocess(samples)
+        # samples = postprocess(samples)
         # samples = torch.clamp(127.5 * samples + 128.0, 0, 255).permute(0, 2, 3, 1).to("cpu", dtype=torch.uint8).numpy()
 
         # Save samples to disk as individual .png files
